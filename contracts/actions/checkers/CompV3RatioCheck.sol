@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity =0.8.10;
-pragma experimental ABIEncoderV2;
 
 import "../ActionBase.sol";
 import "../compoundV3/helpers/CompV3RatioHelper.sol";
-import "../../core/helpers/CoreHelper.sol";
 import "../../utils/TransientStorage.sol";
 
 contract CompV3RatioCheck is ActionBase, CompV3RatioHelper {

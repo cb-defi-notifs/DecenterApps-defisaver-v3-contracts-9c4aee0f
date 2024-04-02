@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.10;
 
-import "../../interfaces/convex/IBooster.sol";
-import "../../interfaces/convex/IBaseRewardPool.sol";
-import "../../interfaces/convex/IRewardPool.sol";
+import "../../interfaces/convex/IBRewardPool.sol";
 import "../../utils/TokenUtils.sol";
 import "./helpers/ConvexHelper.sol";
 import "../ActionBase.sol";
@@ -51,7 +49,7 @@ contract ConvexClaim is ConvexHelper, ActionBase {
     /// @notice Action that claims Convex rewards 
     function _claim(Params memory _params) internal returns (uint256 crvEarned, bytes memory logData) {
         Reward[] memory rewards = _earnedRewards(_params.from, _params.rewardContract);
-        IBaseRewardPool(_params.rewardContract).getReward(_params.from, true);
+        IBRewardPool(_params.rewardContract).getReward(_params.from, true);
 
         crvEarned = _transferRewards(_params.from, _params.to, rewards);
         logData = abi.encode(_params, rewards);

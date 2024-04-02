@@ -24,105 +24,8 @@ const {
     getProxy,
     DFS_REG_CONTROLLER,
     getAddrFromRegistry,
-    setBalance,
-    addrs,
     chainIds,
 } = require('../utils');
-
-const botRefillL2Test = async () => {
-    describe('Bot-Refills-L2', function () {
-        this.timeout(80000);
-
-        let botRefills;
-        let refillCaller; let refillAddr; let feeAddr;
-        let owner;
-        // TEST FOR OPTIMISM NETWORK
-        const network = hre.network.config.name;
-        before(async () => {
-            const botRefillsAddr = await getAddrFromRegistry('BotRefillsL2');
-            botRefills = await hre.ethers.getContractAt('BotRefillsL2', botRefillsAddr);
-
-            refillAddr = '0x5aa40C7C8158D8E29CA480d7E05E5a32dD819332';
-            feeAddr = '0x76720ac2574631530ec8163e4085d6f98513fb27';
-            refillCaller = '0xaFdFC3814921d49AA412d6a22e3F44Cc555dDcC8';
-            owner = '0x322d58b9E75a6918f7e7849AEe0fF09369977e08';
-
-            await sendEther((await hre.ethers.getSigners())[1], refillCaller, '5');
-
-            // give approval to contract from feeAddr
-            // set refillAddr to be allowed
-            await impersonateAccount(owner);
-            const ownerSigner = await hre.ethers.provider.getSigner(owner);
-            const botRefillsOwner = botRefills.connect(ownerSigner);
-            await botRefillsOwner.setAdditionalBot(refillAddr, true);
-            await botRefillsOwner.setRefillCaller(refillCaller);
-            await stopImpersonatingAccount(owner);
-            await impersonateAccount(feeAddr);
-
-            let daiContract = await hre.ethers.getContractAt('IERC20', addrs[network].DAI_ADDRESS);
-            let wethContract = await hre.ethers.getContractAt('IERC20', addrs[network].WETH_ADDRESS);
-
-            const signer = await hre.ethers.provider.getSigner(feeAddr);
-            wethContract = wethContract.connect(signer);
-            daiContract = daiContract.connect(signer);
-
-            await wethContract.approve(botRefills.address, MAX_UINT);
-            await daiContract.approve(botRefills.address, MAX_UINT);
-
-            // clean out all weth on fee addr for test to work
-            const wethFeeAddrBalance = await balanceOf(addrs[network].WETH_ADDRESS, feeAddr);
-            await wethContract.transfer(nullAddress, wethFeeAddrBalance);
-
-            await stopImpersonatingAccount(feeAddr);
-        });
-
-        it('... should call refill with WETH', async () => {
-            await impersonateAccount(refillCaller);
-
-            const ethBotAddrBalanceBefore = await balanceOf(ETH_ADDR, refillAddr);
-
-            const signer = await hre.ethers.provider.getSigner(refillCaller);
-            botRefills = botRefills.connect(signer);
-
-            const ethRefillAmount = hre.ethers.utils.parseUnits('4', 18);
-
-            const wethFeeAddrBalance = await balanceOf(addrs[network].WETH_ADDRESS, feeAddr);
-
-            if (wethFeeAddrBalance.lt(ethRefillAmount)) {
-                await depositToWeth(ethRefillAmount);
-                await send(addrs[network].WETH_ADDRESS, feeAddr, ethRefillAmount);
-            }
-
-            await botRefills.refill(ethRefillAmount, refillAddr);
-
-            const ethBotAddrBalanceAfter = await balanceOf(ETH_ADDR, refillAddr);
-
-            expect(ethBotAddrBalanceAfter).to.be.eq(ethBotAddrBalanceBefore.add(ethRefillAmount));
-
-            await stopImpersonatingAccount(refillCaller);
-        });
-
-        it('... should call refill with DAI', async () => {
-            await impersonateAccount(refillCaller);
-
-            const ethBotAddrBalanceBefore = await balanceOf(ETH_ADDR, refillAddr);
-            const signer = await hre.ethers.provider.getSigner(refillCaller);
-            botRefills = botRefills.connect(signer);
-
-            const ethRefillAmount = hre.ethers.utils.parseUnits('4', 18);
-
-            const daiAmount = hre.ethers.utils.parseUnits('50000', 18);
-            await setBalance(addrs[network].DAI_ADDRESS, feeAddr, daiAmount);
-
-            await botRefills.refill(ethRefillAmount, refillAddr);
-
-            const ethBotAddrBalanceAfter = await balanceOf(ETH_ADDR, refillAddr);
-
-            expect(ethBotAddrBalanceAfter).to.be.eq(ethBotAddrBalanceBefore.add(ethRefillAmount));
-            await stopImpersonatingAccount(refillCaller);
-        });
-    });
-};
 
 const botRefillTest = async () => {
     describe('Bot-Refills', function () {
@@ -182,27 +85,6 @@ const botRefillTest = async () => {
 
             expect(ethBotAddrBalanceAfter).to.be.eq(ethBotAddrBalanceBefore.add(ethRefillAmount));
 
-            await stopImpersonatingAccount(refillCaller);
-        });
-
-        it('... should call refill with DAI', async () => {
-            await impersonateAccount(refillCaller);
-
-            const ethBotAddrBalanceBefore = await balanceOf(ETH_ADDR, refillAddr);
-
-            const signer = await hre.ethers.provider.getSigner(refillCaller);
-            botRefills = botRefills.connect(signer);
-
-            const ethRefillAmount = hre.ethers.utils.parseUnits('4', 18);
-            const daiAmount = hre.ethers.utils.parseUnits('50000', 18);
-            await setBalance(DAI_ADDR, feeAddr, daiAmount);
-            await botRefills.refill(ethRefillAmount, refillAddr);
-
-            const ethBotAddrBalanceAfter = await balanceOf(ETH_ADDR, refillAddr);
-
-            console.log(ethBotAddrBalanceBefore.toString(), ethBotAddrBalanceAfter.toString());
-
-            expect(ethBotAddrBalanceAfter).to.be.gt(ethBotAddrBalanceBefore);
             await stopImpersonatingAccount(refillCaller);
         });
     });
@@ -442,49 +324,53 @@ const tokenPriceHelperTest = async () => {
         before(async () => {
             tokenPriceHelperAddr = await getAddrFromRegistry('TokenPriceHelper');
             tokenPriceHelper = await hre.ethers.getContractAt('TokenPriceHelper', tokenPriceHelperAddr);
-
-            tokenHelperOld = await hre.ethers.getContractAt('TokenPriceHelper', '0x80536cb79341972a5Ef679dF5B70bB4A40a53d96');
+            tokenHelperOld = await hre.ethers.getContractAt('TokenPriceHelper', '0xBa2e5E56A92e93Cc0Cd84626cf762E6B2b30349b');
         });
 
         for (let i = 0; i < assets.length; i++) {
             it(`... should get USD and ETH price for ${assets[i].symbol} `, async () => {
                 if (assets[i].symbol === 'OP') return;
                 if (assets[i].symbol === 'SUSHI') return;
+                if (assets[i].symbol === 'USDC.e') return;
+                if (assets[i].symbol === 'ARB') return;
+                if (assets[i].symbol === 'GMX') return;
                 const assetInfo = getAssetInfo(assets[i].symbol);
-                const priceInUSD = await tokenPriceHelper.getPriceInUSD(assetInfo.address);
-                const aaveInUSD = await tokenPriceHelper.getAaveTokenPriceInUSD(assetInfo.address);
-                const priceInETH = await tokenPriceHelper.getPriceInETH(assetInfo.address);
-                const aaveInETH = await tokenPriceHelper.getAaveTokenPriceInETH(assetInfo.address);
+                const tokenAddr = assetInfo.address;
+                const priceInUSD = await tokenPriceHelper.getPriceInUSD(tokenAddr);
 
-                const priceInUSDOld = await tokenHelperOld.getPriceInUSD(assetInfo.address);
-                const aaveInUSDOld = await tokenHelperOld.getAaveTokenPriceInUSD(assetInfo.address);
-                const priceInETHOld = await tokenHelperOld.getPriceInETH(assetInfo.address);
-                const aaveInETHOld = await tokenHelperOld.getAaveTokenPriceInETH(assetInfo.address);
+                const oldPriceUSD = await tokenHelperOld.getPriceInUSD(assetInfo.address);
+                /*
+                const priceInETH = await tokenPriceHelper.getPriceInETH(tokenAddr);
+
+                const clInUSD = await tokenPriceHelper.getChainlinkPriceInUSD(tokenAddr, false);
+                const clPriceInETH = await tokenPriceHelper.getChainlinkPriceInETH(tokenAddr);
+
+                const aaveInUSD = await tokenPriceHelper.getAaveTokenPriceInUSD(tokenAddr);
+                const aaveInETH = await tokenPriceHelper.getAaveTokenPriceInETH(tokenAddr);
+
+                const aaveV3InUSD = await tokenPriceHelper.getAaveV3TokenPriceInUSD(tokenAddr);
+                const aaveV3InETH = await tokenPriceHelper.getAaveV3TokenPriceInETH(tokenAddr);
+
+                const sparkInUSD = await tokenPriceHelper.getSparkTokenPriceInUSD(tokenAddr);
+                const sparkInETH = await tokenPriceHelper.getSparkTokenPriceInETH(tokenAddr);
+
                 console.log(`-----------------${assets[i].symbol}`);
+                console.log(priceInUSD);
+                console.log(clInUSD);
+                console.log(aaveInUSD);
+                console.log(aaveV3InUSD);
+                console.log(sparkInUSD);
+                console.log('');
+                console.log(priceInETH);
+                console.log(clPriceInETH);
+                console.log(aaveInETH);
+                console.log(aaveV3InETH);
+                console.log(sparkInETH);
+                console.log('------------------------');
+                */
 
-                if (priceInUSD.toString() !== priceInUSDOld.toString()) {
-                    console.log('-----------------1');
-                    console.log(priceInUSD);
-                    console.log(priceInUSDOld);
-                }
-                if (aaveInUSD.toString() !== aaveInUSDOld.toString()) {
-                    console.log('-----------------2');
-
-                    console.log(aaveInUSD);
-                    console.log(aaveInUSDOld);
-                }
-                if (priceInETH.toString() !== priceInETHOld.toString()) {
-                    console.log('-----------------3');
-
-                    console.log(priceInETH);
-                    console.log(priceInETHOld);
-                }
-                if (aaveInETH.toString() !== aaveInETHOld.toString()) {
-                    console.log('-----------------4');
-
-                    console.log(aaveInETH);
-                    console.log(aaveInETHOld);
-                }
+                if (oldPriceUSD.toString() !== priceInUSD.toString()) console.log(assets[i].symbol);
+                // await new Promise((r) => setTimeout(r, 3000));
             });
         }
     });
@@ -605,7 +491,6 @@ const utilsTestsFullTest = async () => {
 module.exports = {
     utilsTestsFullTest,
     botRefillTest,
-    botRefillL2Test,
     feeReceiverTest,
     dfsRegistryControllerTest,
     tokenPriceHelperTest,

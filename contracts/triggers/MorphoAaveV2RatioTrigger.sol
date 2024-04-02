@@ -3,11 +3,11 @@
 pragma solidity =0.8.10;
 
 import "../interfaces/ITrigger.sol";
-import "../interfaces/morpho/IMorphoAaveV2Lens.sol";
 import "../actions/morpho/aaveV2/helpers/MorphoAaveV2Helper.sol";
 import "../utils/TransientStorage.sol";
+import "./helpers/TriggerHelper.sol";
 
-contract MorphoAaveV2RatioTrigger is ITrigger, MorphoAaveV2Helper {
+contract MorphoAaveV2RatioTrigger is ITrigger, MorphoAaveV2Helper, TriggerHelper {
 
     enum RatioState { OVER, UNDER }
     

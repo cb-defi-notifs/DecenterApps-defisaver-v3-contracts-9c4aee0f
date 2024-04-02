@@ -1,15 +1,17 @@
 /* eslint-disable import/no-extraneous-dependencies */
+require('hardhat-tracer');
 require('dotenv-safe').config();
 require('@nomiclabs/hardhat-waffle');
 require('@nomiclabs/hardhat-etherscan');
-require('@tenderly/hardhat-tenderly');
+const tdly = require('@tenderly/hardhat-tenderly');
 require('@nomiclabs/hardhat-ethers');
-require('@tenderly/hardhat-tenderly');
 // require("hardhat-gas-reporter");
 require('hardhat-log-remover');
 
 const Dec = require('decimal.js');
 const dfs = require('@defisaver/sdk');
+
+tdly.setup({ automaticVerifications: false });
 
 dfs.configure({
     testingMode: true,
@@ -37,6 +39,7 @@ module.exports = {
     saveOnTenderly: false,
     defaultNetwork: 'fork',
     lightTesting: true,
+    isWalletSafe: true,
     networks: {
         ...testNetworks,
         local: {
@@ -56,6 +59,12 @@ module.exports = {
             timeout: 1000000,
             gasPrice: 1700000000,
             name: 'arbitrum',
+        },
+        localBase: {
+            url: 'http://127.0.0.1:8545',
+            timeout: 1000000,
+            gasPrice: 1700000000,
+            name: 'base',
         },
         fork: {
             url: `https://rpc.tenderly.co/fork/${process.env.FORK_ID}`,
@@ -81,46 +90,28 @@ module.exports = {
             blockExplorer: 'etherscan',
             contractVerification: true,
         },
-        kovan: {
-            url: process.env.KOVAN_ETHEREUM_NODE,
-            chainId: 42,
-            accounts: [process.env.PRIV_KEY_KOVAN],
-            name: 'kovan',
-            txType: 2,
-            blockExplorer: 'etherscan',
-            contractVerification: true,
-        },
-        kovanOptimism: {
-            url: process.env.KOVAN_OPTIMISM_NODE,
-            chainId: 69,
-            accounts: [process.env.PRIV_KEY_KOVAN],
-            name: 'kovan-optimistic',
-            txType: 0,
-            blockExplorer: 'etherscan',
-            contractVerification: false,
-        },
         optimism: {
             url: process.env.OPTIMISM_NODE,
+            accounts: [process.env.PRIV_KEY_OPTIMISM],
             chainId: 10,
-            accounts: [process.env.PRIV_KEY_KOVAN],
             name: 'optimistic',
             txType: 0,
             blockExplorer: 'etherscan',
             contractVerification: true,
         },
-        rinkebyArbitrum: {
-            url: process.env.RINKEBY_ARBITRUM_NODE,
-            chainID: 421611,
-            accounts: [process.env.PRIV_KEY_KOVAN],
-            name: 'testnet',
+        base: {
+            url: process.env.BASE_NODE,
+            accounts: [process.env.PRIV_KEY_BASE],
+            chainId: 8453,
+            name: 'base',
             txType: 0,
-            blockExplorer: 'arbiscan',
+            blockExplorer: 'etherscan',
             contractVerification: true,
         },
         arbitrum: {
             url: process.env.ARBITRUM_NODE,
+            accounts: [process.env.PRIV_KEY_ARBITRUM],
             chainId: 42161,
-            accounts: [process.env.PRIV_KEY_KOVAN],
             name: 'arbitrum',
             txType: 0,
             blockExplorer: 'arbiscan',
@@ -132,7 +123,7 @@ module.exports = {
         settings: {
             optimizer: {
                 enabled: true,
-                runs: 10000,
+                runs: 1000,
             },
         },
     },
@@ -157,7 +148,8 @@ module.exports = {
         Mainnet: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
         Arbitrum: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
         Optimism: '0x4200000000000000000000000000000000000006',
+        Base: '0x4200000000000000000000000000000000000006',
     },
 };
 
-require('./scripts/hardhat-tasks.js');
+require('./scripts/hardhat-tasks');

@@ -2,7 +2,6 @@
 
 pragma solidity =0.8.10;
 
-import "../interfaces/IDFSRegistry.sol";
 import "../utils/SafeERC20.sol";
 import "./AdminVault.sol";
 import "./helpers/AuthHelper.sol";
@@ -40,6 +39,7 @@ contract AdminAuth is AuthHelper {
     }
 
     /// @notice Destroy the contract
+    /// @dev Deprecated method, selfdestruct will soon just send eth
     function kill() public onlyAdmin {
         selfdestruct(payable(msg.sender));
     }

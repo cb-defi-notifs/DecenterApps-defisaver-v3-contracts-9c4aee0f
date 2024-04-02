@@ -2,6 +2,7 @@ const { expect } = require('chai');
 const hre = require('hardhat');
 
 const dfs = require('@defisaver/sdk');
+const { getAssetInfo } = require('@defisaver/tokens');
 
 const ISubscriptionsABI = require('../../artifacts/contracts/interfaces/ISubscriptions.sol/ISubscriptions.json').abi;
 const {
@@ -26,14 +27,14 @@ const {
     getNftOwner,
     WETH_ADDRESS,
     ETH_ADDR,
-    DFS_REG_CONTROLLER,
-    ADMIN_ACC,
     DAI_ADDR,
     LUSD_ADDR,
     BOND_NFT_ADDR,
     takeSnapshot,
     revertToSnapshot,
     WBTC_ADDR,
+    addrs,
+    getNetwork,
 } = require('../utils');
 
 const { fetchMakerAddresses } = require('../utils-mcd');
@@ -314,6 +315,59 @@ const sendTokenTest = async () => {
     });
 };
 
+const approveTokenTest = async () => {
+    describe('Approve-Token', function () {
+        this.timeout(80000);
+
+        let senderAcc; let proxy;
+
+        before(async () => {
+            senderAcc = (await hre.ethers.getSigners())[0];
+            proxy = await getProxy(senderAcc.address);
+        });
+        it('... should approve DSProxy WETH for someone else to spend', async () => {
+            const weth = getAssetInfo('WETH');
+            const wethAddress = weth.address;
+            const amount = hre.ethers.utils.parseUnits('10', 18);
+            const approveAction = new dfs.actions.basic.ApproveTokenAction(
+                wethAddress, senderAcc.address, amount,
+            );
+            const functionData = approveAction.encodeForDsProxyCall()[1];
+
+            // Set WETH Balances
+            await setBalance(wethAddress, proxy.address, amount);
+            await setBalance(wethAddress, senderAcc.address, hre.ethers.utils.parseUnits('0', 18));
+            await executeAction('ApproveToken', functionData, proxy);
+
+            let tokenContract = await hre.ethers.getContractAt('IERC20', wethAddress);
+            tokenContract = tokenContract.connect(senderAcc);
+            await tokenContract.transferFrom(proxy.address, senderAcc.address, amount);
+            expect(await balanceOf(wethAddress, senderAcc.address)).to.be.eq(amount);
+            expect(await balanceOf(wethAddress, proxy.address)).to.be.eq('0');
+        });
+        it('... should approve DSProxy USDT for someone else to spend', async () => {
+            const usdt = getAssetInfo('USDT');
+            const usdtAddress = usdt.address;
+            const amount = hre.ethers.utils.parseUnits('10', 6);
+            const approveAction = new dfs.actions.basic.ApproveTokenAction(
+                usdtAddress, senderAcc.address, amount,
+            );
+            const functionData = approveAction.encodeForDsProxyCall()[1];
+
+            // Set USDT Balances
+            await setBalance(usdtAddress, proxy.address, amount);
+            await setBalance(usdtAddress, senderAcc.address, hre.ethers.utils.parseUnits('0', 18));
+            await executeAction('ApproveToken', functionData, proxy);
+
+            let tokenContract = await hre.ethers.getContractAt('IERC20', usdtAddress);
+            tokenContract = tokenContract.connect(senderAcc);
+            await tokenContract.transferFrom(proxy.address, senderAcc.address, amount);
+            expect(await balanceOf(usdtAddress, senderAcc.address)).to.be.eq(amount);
+            expect(await balanceOf(usdtAddress, proxy.address)).to.be.eq('0');
+        });
+    });
+};
+
 const sendTokensTest = async () => {
     describe('Send-Tokens', function () {
         this.timeout(80000);
@@ -512,27 +566,30 @@ const changeOwnerTest = async () => {
         this.timeout(80000);
 
         let senderAcc; let senderAcc2; let proxy;
+        const network = getNetwork();
 
-        const ADMIN_VAULT = '0xCCf3d848e08b94478Ed8f46fFead3008faF581fD';
+        const ADMIN_VAULT = addrs[network].ADMIN_VAULT;
+        const ADMIN_ACC = addrs[network].ADMIN_ACC;
 
         before(async () => {
-            await impersonateAccount(ADMIN_ACC);
-
-            const signer = await hre.ethers.provider.getSigner(ADMIN_ACC);
-
-            const adminVaultInstance = await hre.ethers.getContractFactory('AdminVault', signer);
-            const adminVault = await adminVaultInstance.attach(ADMIN_VAULT);
-
-            adminVault.connect(signer);
-
-            // change owner in registry to dfsRegController
-            await adminVault.changeOwner(DFS_REG_CONTROLLER);
-
-            await stopImpersonatingAccount(ADMIN_ACC);
-
             senderAcc = (await hre.ethers.getSigners())[0];
             senderAcc2 = (await hre.ethers.getSigners())[1];
             proxy = await getProxy(senderAcc.address);
+
+            if (network === 'mainnet') {
+                // DFSProxyRegistry must be owned by DFSProxyRegistryController on mainnet
+                await sendEther(senderAcc, ADMIN_ACC, '1');
+                await impersonateAccount(ADMIN_ACC);
+
+                const signer = await hre.ethers.provider.getSigner(ADMIN_ACC);
+
+                const adminVaultInstance = await hre.ethers.getContractFactory('AdminVault', signer);
+                const adminVault = await adminVaultInstance.attach(ADMIN_VAULT);
+                adminVault.connect(signer);
+                // change owner in registry to dfsRegController
+                await adminVault.changeOwner(addrs[network].DFS_REG_CONTROLLER);
+                await stopImpersonatingAccount(ADMIN_ACC);
+            }
         });
 
         it('... should change owner of users DSProxy', async () => {
@@ -942,4 +999,5 @@ module.exports = {
     toggleSubDataTest,
     transferNFTTest,
     sendTokensTest,
+    approveTokenTest,
 };
